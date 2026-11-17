@@ -1,0 +1,43 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.runner }}
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install musl-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: build
+        run: cargo build --release --locked --target "$TARGET"
+
+      - name: package
+        run: tar -czf "noisette-$TARGET.tar.gz" -C "target/$TARGET/release" noisette
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: noisette-${{ matrix.target }}.tar.gz
